@@ -123,6 +123,7 @@ if __name__ =='__main__':
     parser.add_argument("--latent", type=int, default=512)
     parser.add_argument("--n_mlp", type=int, default=8)
     parser.add_argument("--ckpt", type=str, default="checkpoint/stylegan2-ffhq-config-f.pt")
+    parser.add_argument("--our_dir", type=str, default='sample')
     parser.add_argument("--channel_multiplier", type=int, default=2)
     parser.add_argument("--seed", type=int, default=9)
     parser.add_argument("--save_all_attr", type=int, default=0)
@@ -142,44 +143,43 @@ if __name__ =='__main__':
         512, 512, 256, 256, 256, 128, 128, 128, 64, 64, 64, 32, 32
         ]
 
-    folder_name = 'sample'
-    os.makedirs(folder_name, exist_ok=True)
+    os.makedirs(args.out_dir, exist_ok=True)
 
     # default image generation
     torch.manual_seed(args.seed)
     input = torch.randn(1, args.latent).cuda()
     image, _ = generator([input], False)
-    save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_default.png'))
+    save_fig(image, os.path.join(args.out_dir, f'{str(args.seed).zfill(6)}_default.png'))
 
     if args.save_all_attr:
         # 1. SAVE_ALL ATTR MANIPUlATION RESULT: Let's find out
         # TAKES SOME TIME
         for ix in range(len(index)):
-            os.makedirs(os.path.join(folder_name, ix), exist_ok=True)
+            os.makedirs(os.path.join(args.out_dir, ix), exist_ok=True)
             for i in tqdm(range(s_channel[ix])):
                 image = generate_img(generator, input, layer_no=ix, channel_no=i, degree=30)
-                save_fig(image, os.path.join(folder_name, ix, f'{str(args.seed).zfill(6)}_{ix}_{i}.png'))
+                save_fig(image, os.path.join(args.out_dir, ix, f'{str(args.seed).zfill(6)}_{ix}_{i}.png'))
     else:
         # 2. MANIPULATE SPECIFIC ATTRIBUTE
         # pose (?)
         for i in [-30, -10, 10, 30]:
             image = generate_img(generator, input, layer_no=3, channel_no=95, degree=i)
-            save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_pose_{i}.png'))
+            save_fig(image, os.path.join(args.out_dir, f'{str(args.seed).zfill(6)}_pose_{i}.png'))
 
         # eye
         image = generate_img(generator, input, layer_no=9, channel_no=409, degree=10)
-        save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_eye.png'))
+        save_fig(image, os.path.join(args.out_dir, f'{str(args.seed).zfill(6)}_eye.png'))
 
         # hair
         image = generate_img(generator, input, layer_no=12, channel_no=330, degree=-50)
-        save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_hair.png'))
+        save_fig(image, os.path.join(args.out_dir, f'{str(args.seed).zfill(6)}_hair.png'))
 
         # mouth
         image = generate_img(generator, input, layer_no=6, channel_no=259, degree=-20)
-        save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_mouth.png'))
+        save_fig(image, os.path.join(args.out_dir, f'{str(args.seed).zfill(6)}_mouth.png'))
 
         # lip
         image = generate_img(generator, input, layer_no=15, channel_no=45, degree=-3)
-        save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_lip.png'))
+        save_fig(image, os.path.join(args.out_dir, f'{str(args.seed).zfill(6)}_lip.png'))
 
     print("generation complete...!")
