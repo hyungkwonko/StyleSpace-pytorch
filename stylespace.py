@@ -1,6 +1,5 @@
-# https://github.com/xrenaa/StyleSpace-pytorch/blob/main/StyleSpace_FFHQ.ipynb
-
 import os
+import argparse
 import numpy as np
 from PIL import Image
 from model import Generator
@@ -119,21 +118,24 @@ def save_fig(output, name, size=128):
 
 if __name__ =='__main__':
 
-    config = {"latent" : 512, "n_mlp" : 8, "channel_multiplier": 2}
-    generator = Generator(
-            size= 1024,
-            style_dim=config["latent"],
-            n_mlp=config["n_mlp"],
-            channel_multiplier=config["channel_multiplier"]
-        )
+    parser = argparse.ArgumentParser(description="Generate samples from the generator")
 
-    generator.load_state_dict(torch.load("checkpoint/stylegan2-ffhq-config-f.pt")['g_ema'], strict=False)
+    parser.add_argument("--latent", type=int, default=512)
+    parser.add_argument("--n_mlp", type=int, default=8)
+    parser.add_argument("--ckpt", type=str, default="checkpoint/stylegan2-ffhq-config-f.pt")
+    parser.add_argument("--channel_multiplier", type=int, default=2)
+    parser.add_argument("--seed", type=int, default=9)
+    parser.add_argument("--save_all_attr", type=int, default=0)
+
+    args = parser.parse_args()
+
+    generator = Generator(size= 1024, style_dim=args.latent, n_mlp=args.n_mlp, channel_multiplier=args.channel_multiplier)
+    generator.load_state_dict(torch.load(args.ckpt)['g_ema'], strict=False)
     generator.eval()
     generator.cuda()
 
     print(generator)
 
-    seed = 9
     index = [0,1,1,2,2,3,4,4,5,6,6,7,8,8,9,10,10,11,12,12,13,14,14,15,16,16]
     s_channel = [
         512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
@@ -144,39 +146,40 @@ if __name__ =='__main__':
     os.makedirs(folder_name, exist_ok=True)
 
     # default image generation
-    torch.manual_seed(seed)
-    input = torch.randn(1, 512).cuda()
+    torch.manual_seed(args.seed)
+    input = torch.randn(1, args.latent).cuda()
     image, _ = generator([input], False)
-    save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_default.png'))
+    save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_default.png'))
 
-    # # 1. SAVE_ALL ATTR MANIPUlATION RESULT: Let's find out
-    # # TAKES SOME TIME
-    # for ix in range(len(index)):
-    #     os.makedirs(os.path.join(folder_name, ix), exist_ok=True)
-    #     for i in tqdm(range(s_channel[ix])):
-    #         image = generate_img(generator, input, layer_no=ix, channel_no=i, degree=30)
-    #         save_fig(image, os.path.join(folder_name, ix, f'{str(seed).zfill(6)}_{ix}_{i}.png'))
+    if args.save_all_attr:
+        # 1. SAVE_ALL ATTR MANIPUlATION RESULT: Let's find out
+        # TAKES SOME TIME
+        for ix in range(len(index)):
+            os.makedirs(os.path.join(folder_name, ix), exist_ok=True)
+            for i in tqdm(range(s_channel[ix])):
+                image = generate_img(generator, input, layer_no=ix, channel_no=i, degree=30)
+                save_fig(image, os.path.join(folder_name, ix, f'{str(args.seed).zfill(6)}_{ix}_{i}.png'))
+    else:
+        # 2. MANIPULATE SPECIFIC ATTRIBUTE
+        # pose (?)
+        for i in [-30, -10, 10, 30]:
+            image = generate_img(generator, input, layer_no=3, channel_no=95, degree=i)
+            save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_pose_{i}.png'))
 
-    # 2. MANIPULATE SPECIFIC ATTRIBUTE
-    # pose (?)
-    for i in [-30, -10, 10, 30]:
-        image = generate_img(generator, input, layer_no=3, channel_no=95, degree=i)
-        save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_pose_{i}.png'))
+        # eye
+        image = generate_img(generator, input, layer_no=9, channel_no=409, degree=10)
+        save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_eye.png'))
 
-    # eye
-    image = generate_img(generator, input, layer_no=9, channel_no=409, degree=10)
-    save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_eye.png'))
+        # hair
+        image = generate_img(generator, input, layer_no=12, channel_no=330, degree=-50)
+        save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_hair.png'))
 
-    # hair
-    image = generate_img(generator, input, layer_no=12, channel_no=330, degree=-50)
-    save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_hair.png'))
+        # mouth
+        image = generate_img(generator, input, layer_no=6, channel_no=259, degree=-20)
+        save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_mouth.png'))
 
-    # mouth
-    image = generate_img(generator, input, layer_no=6, channel_no=259, degree=-20)
-    save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_mouth.png'))
-
-    # lip
-    image = generate_img(generator, input, layer_no=15, channel_no=45, degree=-3)
-    save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_lip.png'))
+        # lip
+        image = generate_img(generator, input, layer_no=15, channel_no=45, degree=-3)
+        save_fig(image, os.path.join(folder_name, f'{str(args.seed).zfill(6)}_lip.png'))
 
     print("generation complete...!")
