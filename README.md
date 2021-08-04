@@ -3,7 +3,7 @@
 
 | default | eye | hair | lip | mouth |
 |:---:|:---:|:---:|:---:|:---:|
-| ![img](./results/img_default.png)  | ![img](./results/img_eye.png) | ![img](./results/img_hair.png) | ![img](./results/img_lip.png) | ![img](./results/img_mouth.png) |
+| ![img](./results/default.png)  | ![img](./results/eye.png) | ![img](./results/hair.png) | ![img](./results/lip.png) | ![img](./results/mouth.png) |
 
 
 ### Run StyleSpace
