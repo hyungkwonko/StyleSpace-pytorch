@@ -1,30 +1,16 @@
 # https://github.com/xrenaa/StyleSpace-pytorch/blob/main/StyleSpace_FFHQ.ipynb
 
-from model import Generator
-import torch
+import os
 import numpy as np
 from PIL import Image
+from model import Generator
+from tqdm import tqdm
 
-config = {"latent" : 512, "n_mlp" : 8, "channel_multiplier": 2}
-generator = Generator(
-        size= 1024,
-        style_dim=config["latent"],
-        n_mlp=config["n_mlp"],
-        channel_multiplier=config["channel_multiplier"]
-    )
-
-generator.load_state_dict(torch.load("checkpoint/stylegan2-ffhq-config-f.pt")['g_ema'], strict=False)
-generator.eval()
-generator.cuda()
-
-print(generator)
-
+import torch
 from torch.nn import functional as F
 
-index = [0,1,1,2,2,3,4,4,5,6,6,7,8,8,9,10,10,11,12,12,13,14,14,15,16,16]
 
 def conv_warper(layer, input, style, noise):
-    # the conv should change
     conv = layer.conv
     batch, in_channel, height, width = input.shape
 
@@ -73,7 +59,6 @@ def conv_warper(layer, input, style, noise):
     
 
 def encoder(G, noise):
-    # an encoder warper for G
     styles = [noise]  # (1, 512)
     style_space = []
     
@@ -90,14 +75,11 @@ def encoder(G, noise):
     for conv1, conv2 in zip(G.convs[::2], G.convs[1::2]):
         style_space.append(conv1.conv.modulation(latent[:, i]))
         style_space.append(conv2.conv.modulation(latent[:, i+1]))
-        # print(latent[:, i].shape)
-        # print(conv1.conv.modulation(latent[:, i]).shape)
         i += 2
     return style_space, latent, noise
 
 
 def decoder(G, style_space, latent, noise):
-    # an decoder warper for G
     out = G.input(latent)
     out = conv_warper(G.conv1, out, style_space[0], noise[0])
     skip = G.to_rgb1(out, latent[:, 1])
@@ -117,46 +99,84 @@ def decoder(G, style_space, latent, noise):
     return image
 
 
-def save_fig(output, name):
+def generate_img(generator, input, layer_no, channel_no, degree=30):
+    style_space, latent, noise = encoder(generator, input)  # len(style_space) = 17
+    style_space[index[layer_no]][:, channel_no] += degree
+    image = decoder(generator, style_space, latent, noise)
+    return image
+
+
+def save_fig(output, name, size=128):
     output = (output + 1)/2
     output = torch.clamp(output, 0, 1)
     if output.shape[1] == 1:
         output = torch.cat([output, output, output], 1)
     output = output[0].detach().cpu().permute(1,2,0).numpy()
     output = (output*255).astype(np.uint8)
-    im = Image.fromarray(output).resize((256,256), Image.ANTIALIAS)
-    im.save(f"results/img_{name}.png")
+    im = Image.fromarray(output).resize((size,size), Image.ANTIALIAS)
+    im.save(name)
 
 
-# default image generation
-test_input = torch.randn(1, 512).cuda()
-output, _ = generator([test_input], False)
-save_fig(output, 'default')
+if __name__ =='__main__':
 
-# eye
-style_space, latent, noise = encoder(generator, test_input)
-style_space[index[9]][:, 409] += 10
-image = decoder(generator, style_space, latent, noise)
-save_fig(image, 'eye')
+    config = {"latent" : 512, "n_mlp" : 8, "channel_multiplier": 2}
+    generator = Generator(
+            size= 1024,
+            style_dim=config["latent"],
+            n_mlp=config["n_mlp"],
+            channel_multiplier=config["channel_multiplier"]
+        )
 
+    generator.load_state_dict(torch.load("checkpoint/stylegan2-ffhq-config-f.pt")['g_ema'], strict=False)
+    generator.eval()
+    generator.cuda()
 
-# hair
-style_space, latent, noise = encoder(generator, test_input)
-style_space[index[12]][:, 330] -= 50
-image = decoder(generator, style_space, latent, noise)
-save_fig(image, 'hair')
+    print(generator)
 
+    seed = 9
+    index = [0,1,1,2,2,3,4,4,5,6,6,7,8,8,9,10,10,11,12,12,13,14,14,15,16,16]
+    s_channel = [
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 256, 256, 256, 128, 128, 128, 64, 64, 64, 32, 32
+        ]
 
-# mouth
-style_space, latent, noise = encoder(generator, test_input)
-style_space[index[6]][:, 259] -= 20
-image = decoder(generator, style_space, latent, noise)
-save_fig(image, 'mouth')
+    folder_name = 'sample'
+    os.makedirs(folder_name, exist_ok=True)
 
-# lip
-style_space, latent, noise = encoder(generator, test_input)
-style_space[index[15]][:, 45] -= 3
-image = decoder(generator, style_space, latent, noise)
-save_fig(image, 'lip')
+    # default image generation
+    torch.manual_seed(seed)
+    input = torch.randn(1, 512).cuda()
+    image, _ = generator([input], False)
+    save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_default.png'))
 
-print("generation complete...!")
+    # # 1. SAVE_ALL ATTR MANIPUlATION RESULT: Let's find out
+    # # TAKES SOME TIME
+    # for ix in range(len(index)):
+    #     os.makedirs(os.path.join(folder_name, ix), exist_ok=True)
+    #     for i in tqdm(range(s_channel[ix])):
+    #         image = generate_img(generator, input, layer_no=ix, channel_no=i, degree=30)
+    #         save_fig(image, os.path.join(folder_name, ix, f'{str(seed).zfill(6)}_{ix}_{i}.png'))
+
+    # 2. MANIPULATE SPECIFIC ATTRIBUTE
+    # pose (?)
+    for i in [-30, -10, 10, 30]:
+        image = generate_img(generator, input, layer_no=3, channel_no=95, degree=i)
+        save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_pose_{i}.png'))
+
+    # eye
+    image = generate_img(generator, input, layer_no=9, channel_no=409, degree=10)
+    save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_eye.png'))
+
+    # hair
+    image = generate_img(generator, input, layer_no=12, channel_no=330, degree=-50)
+    save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_hair.png'))
+
+    # mouth
+    image = generate_img(generator, input, layer_no=6, channel_no=259, degree=-20)
+    save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_mouth.png'))
+
+    # lip
+    image = generate_img(generator, input, layer_no=15, channel_no=45, degree=-3)
+    save_fig(image, os.path.join(folder_name, f'{str(seed).zfill(6)}_lip.png'))
+
+    print("generation complete...!")
