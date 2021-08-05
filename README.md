@@ -1,5 +1,6 @@
 # Simple StyleSpace Run
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hyungkwonko/StyleSpace-pytorch/blob/main/StyleSpace_example.ipynb)
 
 | default | eye | hair | lip | mouth |
 |:---:|:---:|:---:|:---:|:---:|
